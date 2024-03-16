@@ -19,15 +19,21 @@ async def check_user(fio, birthday):
         element = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input.ng-untouched.ng-valid.ng-dirty")))
 
-        element.send_keys("Иванов Петр Иванович")
+        element.send_keys(fio)
         time.sleep(3)
         element.send_keys(Keys.ENTER)
         time.sleep(5)
-        card_elements = WebDriverWait(driver, 5).until(
-            EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".u-card-result__wrapper")))
+
+        try:
+            card_elements = WebDriverWait(driver, 5).until(
+                EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".u-card-result__wrapper")))
+
+        except:
+
+            return None
 
         for card in card_elements:
-            card.screenshot('card.png')
+            card.screenshot(f'{birthday}.png')
             time.sleep(3)
             card.find_element(By.CSS_SELECTOR, ".u-svg-arr-to-right").click()
 
@@ -38,9 +44,12 @@ async def check_user(fio, birthday):
             )
             date = birth_date.text
 
+            if date == birthday:
+                return True
             driver.close()
             driver.switch_to.window(driver.window_handles[0])
 
+        return False
     except Exception as e:
         print(e)
 
@@ -48,3 +57,7 @@ async def check_user(fio, birthday):
 
         driver.close()
         driver.quit()
+
+
+a = check_user("Иванов Петр Иванович", "04.07.1972")
+print(a)
