@@ -24,6 +24,7 @@ try:
     button = WebDriverWait(driver, 5).until(
         EC.presence_of_element_located((By.CSS_SELECTOR, "button[alt='Найти'][type='submit']")))
 
+
     button.click()
 
     time.sleep(3)
