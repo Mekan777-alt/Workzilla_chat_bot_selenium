@@ -1,7 +1,6 @@
-import os
-
-from aiogram import types, Dispatcher, F, Router
+from aiogram import types, F, Router
 from aiogram.filters import Command
+from aiogram.types import InputFile, FSInputFile
 
 from config import bot
 from service.pochta import get_track_info
@@ -25,6 +24,8 @@ async def handle_document(message: types.Message):
     )
 
     get_track_info(message.document.file_name)
-    await bot.send_document(chat_id=message.from_user.id, document=open('result.xlsx', 'rb'))
+    get_track_info(message.document.file_name)
+    document = FSInputFile('result.xlsx')
+    await bot.send_document(chat_id=message.from_user.id, document=document)
     # Выведите путь к сохраненному файлу
     print('Успех')
