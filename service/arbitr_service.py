@@ -20,15 +20,13 @@ try:
 
     element.send_keys("иванова евгения александровна")
     element.send_keys(Keys.ENTER)
-    element.send_keys(Keys.ENTER)
-    time.sleep(3)
 
-    # Перейти к кнопке
     button = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "button")))
+        EC.presence_of_element_located((By.CSS_SELECTOR, "button[alt='Найти'][type='submit']")))
 
-    # Прокрутить страницу до кнопки
     button.click()
+
+    time.sleep(3)
 
     table = WebDriverWait(driver, 10).until(EC.presence_of_element_located((By.ID, "b-cases")))
 
