@@ -15,15 +15,16 @@ try:
     #     EC.presence_of_element_located((By.ID, "sug-participants")))
     # cookie_disclaimer.click()
 
-    element = WebDriverWait(driver, 5).until(
-        EC.element_to_be_clickable((By.CSS_SELECTOR, "#sug-participants > div > textarea")))
+    input_field = WebDriverWait(driver, 10).until(
+        EC.presence_of_element_located((By.CSS_SELECTOR, '#sug-participants textarea'))
+    )
 
-    element.send_keys("иванова евгения александровна")
-    element.send_keys(Keys.ENTER)
-
+    input_field.send_keys("иванова евгения александровна")
+    time.sleep(5)
+    input_field.send_keys(Keys.ENTER)
+    time.sleep(2.5)
     button = WebDriverWait(driver, 5).until(
-        EC.presence_of_element_located((By.CSS_SELECTOR, "button[alt='Найти'][type='submit']")))
-
+        EC.presence_of_element_located((By.CSS_SELECTOR, "div.b-button-container button[type='submit']")))
 
     button.click()
 

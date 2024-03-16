@@ -1,3 +1,5 @@
+import os.path
+
 from aiogram import types, F, Router
 from aiogram.filters import Command
 from aiogram.types import InputFile, FSInputFile
@@ -16,16 +18,15 @@ async def start(message: types.Message):
 @router.message(F.document)
 async def handle_document(message: types.Message):
     # file_path = os.path.join(, message.document.file_name)
-
-    # if document := message.document:
     await bot.download(
         file=message.document,
-        destination=f"D:\myProjects\Workzilla_chat_bot_selenium\handlers\\files\\{message.document.file_name}"
+        destination=f"{os.getcwd()}/files/{message.document.file_name}"
     )
 
     get_track_info(message.document.file_name)
     get_track_info(message.document.file_name)
     document = FSInputFile('result.xlsx')
     await bot.send_document(chat_id=message.from_user.id, document=document)
+    os.remove('result.xlsx')
+    os.remove(f'{os.getcwd()}/files/{message.document.file_name}')
     # Выведите путь к сохраненному файлу
-    print('Успех')

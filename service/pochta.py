@@ -1,3 +1,4 @@
+import os
 import warnings
 from datetime import datetime
 
@@ -107,7 +108,7 @@ def get_tracking_info(track_number):
 
 def get_track_info(file_name):
     # Загружаем данные из экселя
-    df = pd.read_excel(f"D:\\myProjects\\Workzilla_chat_bot_selenium\\handlers\\files\\{file_name}")
+    df = pd.read_excel(f"{os.getcwd()}/files/{file_name}")
 
     # Почта
     count_pochta = 1
