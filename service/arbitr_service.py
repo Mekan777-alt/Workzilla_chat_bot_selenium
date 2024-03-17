@@ -1,7 +1,7 @@
 import time
 
 from selenium import webdriver
-from selenium.webdriver import Keys, ActionChains
+from selenium.webdriver import Keys
 from selenium.webdriver.chrome.options import Options
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support import expected_conditions as EC
@@ -32,9 +32,11 @@ try:
     # cookie_disclaimer.click()
 
     element = WebDriverWait(driver, 10).until(
-            EC.presence_of_element_located((By.CSS_SELECTOR, '#sug-participants textarea'))
-        )
-    element.send_keys("иванова евгения александровна")
+        EC.presence_of_element_located((By.CSS_SELECTOR, '#sug-participants textarea'))
+    )
+    check_human = "иванова евгения александровна"
+    check_human.lower()
+    element.send_keys(check_human)
     element.send_keys(Keys.ENTER)
 
     time.sleep(3)
@@ -51,27 +53,16 @@ try:
     # Найти все строки в таблице
     rows = table.find_elements(By.TAG_NAME, "tr")
 
+    result = False
     # Перебрать все строки в цикле
     for row in rows:
         # Найти все ячейки в строке
         cells = row.find_elements(By.TAG_NAME, "td")
 
-        # Вывести текст из каждой ячейки
-        for cell in cells:
-            print(cell.text)
-# card_elements = WebDriverWait(driver, 5).until(
-#     EC.presence_of_all_elements_located((By.CLASS_NAME, "b-button")))
+        if cells[2].text.lower() == check_human or cells[3].text.lower() == check_human:
+            result = True
 
-# for card in card_elements:
-#     card.screenshot('card.png')
-#     time.sleep(3)
-#     card.find_element(By.CSS_SELECTOR, ".u-svg-arr-to-right").click()
-#
-#     driver.switch_to.window(driver.window_handles[-1])
-#     time.sleep(5)
-# driver.close()
-# driver.switch_to.window(driver.window_handles[0])
-
+    print(result)
 except Exception as e:
     print(e)
 finally:
