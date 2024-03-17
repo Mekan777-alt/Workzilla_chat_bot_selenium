@@ -27,15 +27,21 @@ async def set_birthday(message: types.Message, state: FSMContext):
     value_list = data['fio'].split('\n')
     text = ""
     for value in value_list:
-        fio, birthday = value.split(' - ')
-        check = await check_user(fio, birthday)
-        await asyncio.sleep(10)
-        if check:
-            text += f"‼️ {fio} - {birthday}\n"
-        elif check is None:
-            text += f"✅{fio} - {birthday}\n"
-        elif check is False:
-            text += f"👍 {fio} - {birthday}\n"
+        try:
+            fio, birthday = value.split(' - ')
+            check = await check_user(fio, birthday)
+
+            await asyncio.sleep(10)
+            if check:
+                text += f"‼️ {fio} - {birthday}\n"
+            elif check is None:
+                text += f"✅{fio} - {birthday}\n"
+            elif check is False:
+                text += f"👍 {fio} - {birthday}\n"
+        except ValueError:
+            await message.answer("Введины не валидные данные\n\n"
+                                 "Повторите")
+            await state.clear()
     file = zip_files(image_file_list)
     path_file = FSInputFile(file)
     await state.clear()

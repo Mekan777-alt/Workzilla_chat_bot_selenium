@@ -46,11 +46,28 @@ async def get_tracking_info(track_number, user_id):
         destination_city = data['detailedTrackings'][0]['trackingItem']['destinationCityName']
         recipient = data['detailedTrackings'][0]['trackingItem']['recipient']
         status = data['detailedTrackings'][0]['trackingItem']['commonStatus']
-
         sender = data['detailedTrackings'][0]['trackingItem']['sender']
-
-        pod_status = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['humanStatus']
-        pod_status_date = datetime.strptime(data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['date'], "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
+        if status == "Покинуло сортировочный центр":
+            pod_status = next(entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
+            ['trackingHistoryItemList'] if entry['humanStatus'] == "Неудачная попытка вручения")
+        elif status == "Направлено для передачи на временное хранение":
+            pod_status = next(entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
+            ['trackingHistoryItemList'] if entry['humanStatus'] == "Неудачная попытка вручения")
+        elif status == "Временное хранение":
+            pod_status = next(entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
+            ['trackingHistoryItemList'] if entry['humanStatus'] == "Неудачная попытка вручения")
+        elif status == "Аннулировано":
+            pod_status = next(entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
+            ['trackingHistoryItemList'] if entry['humanStatus'] == "Неудачная попытка вручения")
+        elif status == "Вручено":
+            pod_status = next(entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
+            ['trackingHistoryItemList'] if entry['humanStatus'] == "Вручение адресату")
+        elif status == "Возвращено отправителю":
+            pod_status = next(entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
+            ['trackingHistoryItemList'] if entry['humanStatus'] == "Неудачная попытка вручения")
+        pod_status_date = datetime.strptime(
+            data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['date'],
+            "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
         pod_status_index = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['index']
         pod_status_city = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['cityName']
 
