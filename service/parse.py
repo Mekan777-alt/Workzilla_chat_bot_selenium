@@ -1,15 +1,20 @@
+import os
 import time
 from selenium import webdriver
 from selenium.webdriver.common.keys import Keys
 from selenium.webdriver.common.by import By
 from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
+import uuid
+from Screenshot import Screenshot
+
+image_file_list = []
 
 
 async def check_user(fio, birthday):
-
     driver = webdriver.Chrome()
-
+    ob = Screenshot.Screenshot()
+    driver.set_window_size(1920, 1080)
     driver.get("https://bankrot.fedresurs.ru")
 
     try:
@@ -23,7 +28,12 @@ async def check_user(fio, birthday):
         time.sleep(3)
         element.send_keys(Keys.ENTER)
         time.sleep(5)
-        driver.save_screenshot(f'{fio}.png')
+        random_uuid = uuid.uuid4()
+        ob.full_screenshot(driver, save_path=f'{os.getcwd()}/files/',
+                           image_name=f'{fio}-{random_uuid}.png',
+                           is_load_at_runtime=True,
+                           load_wait_time=3)
+        image_file_list.append(f'{os.getcwd()}/files/{fio}-{random_uuid}.png')
         try:
             card_elements = WebDriverWait(driver, 5).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".u-card-result__wrapper")))

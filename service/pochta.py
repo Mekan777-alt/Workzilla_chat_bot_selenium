@@ -1,7 +1,7 @@
 import os
 import warnings
 from datetime import datetime
-
+from config import bot
 import pandas as pd
 import requests
 
@@ -25,7 +25,7 @@ headers = {
 
 
 # Функция для почты
-def get_tracking_info(track_number):
+async def get_tracking_info(track_number, user_id):
     params = {
         'language': 'ru',
         'track-numbers': track_number,
@@ -42,94 +42,87 @@ def get_tracking_info(track_number):
 
         # Ваши операции с данными, как ранее
         mail_type = data['detailedTrackings'][0]['formF22Params']['MailTypeText']
-        weight = data['detailedTrackings'][0]['formF22Params']['WeightGr']
-        formatted_accepted_date = datetime.strptime(
-            max(entry['date'] for entry in data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                if entry['humanStatus'] == "Принято в отделении связи"),
-            "%Y-%m-%dT%H:%M:%S.%f%z"
-        ).strftime("%d.%m.%Y")
-
-        first_event = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]
-        status_date = datetime.strptime(first_event['date'], "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d-%m-%Y")
-
-        status_date = f"{status_date} / {first_event['humanStatus']}"
+        recipient_index = data['detailedTrackings'][0]['trackingItem']['indexTo']
+        destination_city = data['detailedTrackings'][0]['trackingItem']['destinationCityName']
+        recipient = data['detailedTrackings'][0]['trackingItem']['recipient']
+        status = data['detailedTrackings'][0]['trackingItem']['commonStatus']
 
         sender = data['detailedTrackings'][0]['trackingItem']['sender']
-        recipient = data['detailedTrackings'][0]['trackingItem']['recipient']
-        destination_city = data['detailedTrackings'][0]['trackingItem']['destinationCityName']
-        index_to = data['detailedTrackings'][0]['trackingItem']['indexTo']
-        destination_info = f"{destination_city} / {index_to}"
+
+        pod_status = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['humanStatus']
+        pod_status_date = datetime.strptime(data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['date'], "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
+        pod_status_index = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['index']
+        pod_status_city = data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'][0]['cityName']
 
         arrival_event = any(entry['humanStatus'] == "Прибыло в место вручения" for entry in
                             data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'])
 
         if arrival_event:
-            event_status = "Да"
             arrival_date = datetime.strptime(
                 next(entry['date'] for entry in data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
                      if entry['humanStatus'] == "Прибыло в место вручения"),
                 "%Y-%m-%dT%H:%M:%S.%f%z"
-            ).strftime("%d.%m.%Y, %H:%M")
+            ).strftime("%d.%m.%Y")
+            index = next(
+                entry['index'] for entry in data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
+                if entry['humanStatus'] == "Прибыло в место вручения")
+            city = next(
+                entry['cityName'] for entry in data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
+                if entry['humanStatus'] == "Прибыло в место вручения")
         else:
-            event_status = "Нет"
             arrival_date = ""
-
-        delivery_attempt_events = [entry for entry in
-                                   data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                                   if entry['humanStatus'] in ["Вручение адресату", "Неудачная попытка вручения",
-                                                               "Вручение адресату почтальоном"]]
-        latest_delivery_attempt = max(delivery_attempt_events, key=lambda x: x['date'], default=None)
-
-        if latest_delivery_attempt:
-            delivery_status = latest_delivery_attempt['humanStatus']
-            delivery_date = datetime.strptime(latest_delivery_attempt['date'], "%Y-%m-%dT%H:%M:%S.%f%z").strftime(
-                "%d-%m-%Y, %H:%M")
-        else:
-            delivery_status = ""
-            delivery_date = ""
-
+            index = ""
+            city = ""
         return {
-            'MailTypeText': mail_type,
-            'WeightGr': weight,
-            'LastAcceptedDate': formatted_accepted_date,
-            'StatusDate': status_date,
-            'Sender': sender,
+            'TrackNumber': track_number,
+            'RecipientIndex': recipient_index,
+            'DestinationCity': destination_city,
             'Recipient': recipient,
-            'DestinationInfo': destination_info,
-            'ArrivalEvent': event_status,
+            'Status': status,
+            'PodStatus': pod_status,
+            'PodStatusDate': pod_status_date,
+            'PodStatusIndex': pod_status_index,
+            'PodStatusCity': pod_status_city,
             'ArrivalDate': arrival_date,
-            'DeliveryStatus': delivery_status,
-            'DeliveryDate': delivery_date
+            'IndexGet': index,
+            'CityGet': city,
+            'MailType': mail_type,
+            'Sender': sender,
         }
     else:
-        print(f"Ошибка при выполнении запроса для трек-номера {track_number}: {response.status_code}")
+        await bot.send_message(user_id,
+                               f"Ошибка при выполнении запроса для трек-номера {track_number}: {response.status_code}")
         return None
 
 
-def get_track_info(file_name):
+async def get_track_info(file_name, user_id):
     # Загружаем данные из экселя
     df = pd.read_excel(f"{os.getcwd()}/files/{file_name}")
 
+    drop_list = ['ФИО']
+    df = df.drop(columns=drop_list, errors='ignore')
     # Почта
     count_pochta = 1
     for index, row in df.iterrows():
 
         track_number = row['Трек-номер']
-        tracking_info = get_tracking_info(track_number)
+        tracking_info = await get_tracking_info(track_number, user_id)
 
         if tracking_info:
-            df.at[index, 'Отправление'] = str(tracking_info['MailTypeText'])
-            df.at[index, 'Принято'] = str(tracking_info['LastAcceptedDate'])
-            df.at[index, 'Статус'] = str(tracking_info['StatusDate'])
-            df.at[index, 'От кого'] = str(tracking_info['Sender'])
+            df.at[index, 'Куда Индекс'] = str(tracking_info['RecipientIndex'])
+            df.at[index, 'Куда Место'] = str(tracking_info['DestinationCity'])
             df.at[index, 'Кому'] = str(tracking_info['Recipient'])
-            df.at[index, 'Куда'] = str(tracking_info['DestinationInfo'])
-            df.at[index, 'Прибыло'] = str(tracking_info['ArrivalEvent'])
-            df.at[index, 'Дата прибытия'] = str(tracking_info['ArrivalDate'])
-            df.at[index, 'Событие'] = str(tracking_info['DeliveryStatus'])
-            df.at[index, 'Дата события'] = str(tracking_info['DeliveryDate'])
-        print(f'Почта: {count_pochta} из {len(df)}')
+            df.at[index, 'Статус'] = str(tracking_info['Status'])
+            df.at[index, 'Подстатус'] = str(tracking_info['PodStatus'])
+            df.at[index, 'Подстатус - дата'] = str(tracking_info['PodStatusDate'])
+            df.at[index, 'Подстатус - индекс'] = str(tracking_info['PodStatusIndex'])
+            df.at[index, 'Подстатус - место'] = str(tracking_info['PodStatusCity'])
+            df.at[index, 'Дата - прибыло в место вручения'] = str(tracking_info['ArrivalDate'])
+            df.at[index, 'Индекс - Прибыло в место вручения'] = str(tracking_info['IndexGet'])
+            df.at[index, 'Место - Прибыло в место вручения'] = str(tracking_info['CityGet'])
+            df.at[index, 'Вид отправления'] = str(tracking_info['MailType'])
+            df.at[index, 'От кого:'] = str(tracking_info['Sender'])
+
         count_pochta += 1
     # Сохраняем обновленные данные в новый эксель файл
     df.to_excel('result.xlsx', index=False)
-    print('Таблица создана. ')
