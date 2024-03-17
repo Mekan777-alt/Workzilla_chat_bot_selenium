@@ -15,24 +15,18 @@ async def set_bankrot(message: types.Message, state: FSMContext):
 
 
 @router.message(Bankrot.fio)
-async def set_fio(message: types.Message, state: FSMContext):
-    await state.update_data(fio=message.text)
-    await message.answer("Введите день/месяц/год рождения\n\n"
-                         "в формате 23.05.1983")
-    await state.set_state(Bankrot.birthday)
-
-
-@router.message(Bankrot.birthday)
 async def set_birthday(message: types.Message, state: FSMContext):
-    await state.update_data(birthday=message.text)
+    await state.update_data(fio=message.text)
     data = await state.get_data()
     await message.answer("Минуту... \n\n")
-    await asyncio.sleep(2)
-    check = await check_user(data['fio'], data['birthday'])
-    if check:
-        await message.answer(f"‼️ {data['fio']} - {data['birthday']}")
-    elif check is None:
-        await message.answer(f"✅{data['fio']} - {data['birthday']}")
-    elif check is False:
-        await message.answer(f"👍 {data['fio']} - {data['birthday']}")
+    value_list = data['fio'].split('\n')
+    for value in value_list:
+        fio, birthday = value.split(' - ')
+        check = await check_user(fio, birthday)
+        if check:
+            await message.answer(f"‼️ {data['fio']} - {data['birthday']}")
+        elif check is None:
+            await message.answer(f"✅{data['fio']} - {data['birthday']}")
+        elif check is False:
+            await message.answer(f"👍 {data['fio']} - {data['birthday']}")
 

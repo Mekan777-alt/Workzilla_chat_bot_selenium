@@ -23,7 +23,7 @@ async def check_user(fio, birthday):
         time.sleep(3)
         element.send_keys(Keys.ENTER)
         time.sleep(5)
-
+        driver.save_screenshot(f'{fio}.png')
         try:
             card_elements = WebDriverWait(driver, 5).until(
                 EC.presence_of_all_elements_located((By.CSS_SELECTOR, ".u-card-result__wrapper")))
@@ -31,9 +31,7 @@ async def check_user(fio, birthday):
         except:
 
             return None
-
         for card in card_elements:
-            card.screenshot(f'{birthday}.png')
             time.sleep(3)
             card.find_element(By.CSS_SELECTOR, ".u-svg-arr-to-right").click()
 
@@ -57,7 +55,3 @@ async def check_user(fio, birthday):
 
         driver.close()
         driver.quit()
-
-
-a = check_user("Иванов Петр Иванович", "04.07.1972")
-print(a)
