@@ -20,7 +20,6 @@ chrome_options.add_argument("--log-level=3")
 # ob = Screenshot.Screenshot()
 
 driver = webdriver.Chrome(options=chrome_options)
-# driver = webdriver.Chrome()
 
 # driver.set_window_size(1920, 1080)
 
@@ -40,6 +39,12 @@ try:
     element.send_keys(Keys.ENTER)
 
     time.sleep(3)
+
+    button = WebDriverWait(driver, 10).until(
+        EC.element_to_be_clickable((By.CSS_SELECTOR, 'li.bankruptcy'))
+    )
+
+    button.click()
 
     error_message_element = driver.find_elements(By.CSS_SELECTOR, '.b-page-message_error')
 
@@ -61,6 +66,7 @@ try:
 
         if cells[2].text.lower() == check_human or cells[3].text.lower() == check_human:
             result = True
+            driver.save_screenshot(f'{check_human.upper()}.png')
 
     print(result)
 except Exception as e:
