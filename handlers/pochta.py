@@ -17,6 +17,8 @@ async def start(message: types.Message):
 
 @router.message(F.document)
 async def handle_document(message: types.Message):
+
+    await message.answer("Ожидайте..")
     await bot.download(
         file=message.document,
         destination=f"{os.getcwd()}/files/{message.document.file_name}"
