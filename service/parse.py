@@ -7,12 +7,28 @@ from selenium.webdriver.support.ui import WebDriverWait
 from selenium.webdriver.support import expected_conditions as EC
 import uuid
 from Screenshot import Screenshot
+from selenium.webdriver.chrome.service import Service
 
 image_file_list = []
 
 
 async def check_user(fio, birthday):
-    driver = webdriver.Chrome()
+    #import os
+    #time.sleep(3)
+    #os.environ['DISPLAY'] = ':99'  # Replace with the display number you chose
+    options = webdriver.ChromeOptions()
+   
+    options.add_argument("--no-sandbox")
+    options.add_argument("--headless")
+    options.add_argument("--disable-dev-shm-usage")
+    options.add_argument("--disable-setuid-sandbox")
+    options.add_argument(
+        'user-agent=Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/91.0.4472.124 Safari/537.36')
+    chrome_driver_path = "/root/Workzilla_chat_bot_selenium/chromedriver"  # Replace this with the path to your ChromeDriver executable
+    
+    service = Service(executable_path=chrome_driver_path)
+    driver = webdriver.Chrome(service=service, options=options)
+
     ob = Screenshot.Screenshot()
     driver.set_window_size(1920, 1080)
     driver.get("https://bankrot.fedresurs.ru")
@@ -20,10 +36,12 @@ async def check_user(fio, birthday):
     try:
         cookie_disclaimer = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "button.btn-accept")))
+        
         cookie_disclaimer.click()
+    
         element = WebDriverWait(driver, 5).until(
             EC.presence_of_element_located((By.CSS_SELECTOR, "input.ng-untouched.ng-valid.ng-dirty")))
-
+    
         element.send_keys(fio)
         time.sleep(3)
         element.send_keys(Keys.ENTER)
