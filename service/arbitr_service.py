@@ -43,8 +43,9 @@ def check_table(fio):
         check_human = fio
         check_human.lower()
         element.send_keys(check_human)
-        element.send_keys(Keys.ENTER)
-
+        # element.send_keys(Keys.ENTER)
+        button_search = driver.find_element(By.XPATH, "//button[.='Найти']")
+        button_search.click()
         time.sleep(3)
 
         error_message_element = driver.find_elements(By.CSS_SELECTOR, '.b-page-message_error')
