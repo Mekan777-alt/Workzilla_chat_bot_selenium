@@ -66,10 +66,9 @@ async def check_user(fio, birthday):
             driver.switch_to.window(driver.window_handles[-1])
             time.sleep(5)
             birth_date = WebDriverWait(driver, 5).until(
-                EC.presence_of_element_located((By.CSS_SELECTOR, ".mr-3"))
+                EC.presence_of_element_located((By.CSS_SELECTOR, ".align-self-center"))
             )
             date = birth_date.text
-
             if date == birthday:
                 return True
             driver.close()
