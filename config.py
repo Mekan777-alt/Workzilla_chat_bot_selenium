@@ -8,3 +8,6 @@ load_dotenv()
 bot = Bot(os.getenv("TOKEN"))
 
 dp = Dispatcher(bot=bot, storage=MemoryStorage())
+
+my_login = os.getenv("LOGIN")
+my_password = os.getenv("PASSWORD")

@@ -1,192 +1,113 @@
+import asyncio
 import os
 import warnings
-from datetime import datetime
-from config import bot
+
+from openpyxl.reader.excel import load_workbook
+from openpyxl.styles import Border, Side
+
+from config import bot, my_login, my_password
 import pandas as pd
-import requests
+import json
+from zeep import Client, Settings
+from zeep.helpers import serialize_object
 
-# Игнорировать незначительные ошибки.
 warnings.simplefilter(action='ignore', category=FutureWarning)
-
-# Заголовки
-headers = {
-    'Accept-Language': 'ru-RU,ru;q=0.9,en-US;q=0.8,en;q=0.7',
-    'Connection': 'keep-alive',
-    'Referer': 'https://www.pochta.ru/tracking?barcode=10204289519872',
-    'Sec-Fetch-Dest': 'empty',
-    'Sec-Fetch-Mode': 'cors',
-    'Sec-Fetch-Site': 'same-origin',
-    'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/121.0.0.0 Safari/537.36',
-    'accept': 'application/json',
-    'sec-ch-ua': '"Not A(Brand";v="99", "Google Chrome";v="121", "Chromium";v="121"',
-    'sec-ch-ua-mobile': '?0',
-    'sec-ch-ua-platform': '"Windows"',
-}
 
 
 # Функция для почты
 async def get_tracking_info(track_number, user_id):
-    params = {
-        'language': 'ru',
-        'track-numbers': track_number,
+    url = 'https://tracking.russianpost.ru/rtm34?wsdl'
+    settings = Settings(strict=False, xml_huge_tree=True)
+    client = Client(wsdl=url, settings=settings)
+
+    operation_history_request = {
+        'Barcode': track_number,
+        'MessageType': '0',
+        'Language': 'RUS'
     }
 
-    response = requests.get(
-        'https://www.pochta.ru/api/tracking/api/v1/trackings/by-barcodes',
-        params=params,
-        headers=headers,
-    )
+    authorization_header = {
+        'login': my_login,
+        'password': my_password
+    }
 
-    if response.status_code == 200:
-        data = response.json()
+    try:
+        result = client.service.getOperationHistory(
+            OperationHistoryRequest=operation_history_request,
+            AuthorizationHeader=authorization_header
+        )
+        serialized_result = serialize_object(result)
+        json_result = json.dumps(serialized_result, indent=4, ensure_ascii=False, default=str)
+
+        data = json.loads(json_result)
 
         try:
-            # Ваши операции с данными, как ранее
-            mail_type = data['detailedTrackings'][0]['formF22Params']['MailTypeText']
-            recipient_index = data['detailedTrackings'][0]['trackingItem']['indexTo']
-            destination_city = data['detailedTrackings'][0]['trackingItem']['destinationCityName']
-            recipient = data['detailedTrackings'][0]['trackingItem']['recipient']
-            status = data['detailedTrackings'][0]['trackingItem']['commonStatus']
-            sender = data['detailedTrackings'][0]['trackingItem']['sender']
 
-            receive_status = next((entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Принято в отделении связи" in entry.get('humanStatus')), None)
-            receive_index = next((entry['index'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Принято в отделении связи" in entry.get('humanStatus')), None)
-            receive_city = next((entry['cityName'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Принято в отделении связи" in entry.get('humanStatus')), None)
+            first_item = data[0] if data else None
+            last_item = data[-1] if data else None
 
-            try:
-                receive_date = datetime.strptime(
-                        next(entry['date'] for entry in
-                             data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                             if "Принято в отделении связи" in entry.get('humanStatus')),
-                        "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
-            except StopIteration:
-                receive_date = None
+            barcode = track_number
 
-            pod_status = None
-            pod_status_index = None
-            pod_status_city = None
-            pod_status_date = None
+            index = first_item['AddressParameters']['DestinationAddress'].get('Index')
+            description = first_item['AddressParameters']['DestinationAddress'].get('Description')
 
-            if "Аннулировано" in status:
+            rcpn = first_item['UserParameters']['Rcpn']
+            sndr = first_item['UserParameters']['Sndr']
 
-                pod_status = next((entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if entry.get('humanStatus') == "Неудачная попытка вручения"), None)
+            oper_type_1 = last_item['OperationParameters']['OperType']['Name'] \
+                if last_item['OperationParameters']['OperType']['Name'] else ''
+            oper_attr_1 = last_item['OperationParameters']['OperAttr']['Name'] \
+                if last_item['OperationParameters']['OperAttr']['Name'] else ''
+            oper_date_1 = last_item['OperationParameters']['OperDate'] \
+                if last_item['OperationParameters']['OperDate'] else ''
 
-                pod_status_index = next((entry['index'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if entry.get('humanStatus') == "Неудачная попытка вручения"), None)
+            oper_address_1_index = last_item['AddressParameters']['OperationAddress']['Index'] \
+                if last_item['AddressParameters']['OperationAddress']['Index'] else ''
+            oper_address_1_address = last_item['AddressParameters']['OperationAddress']['Description'] \
+                if last_item['AddressParameters']['OperationAddress']['Description'] else ''
 
-                pod_status_city = next((entry['cityName'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if entry.get('humanStatus') == "Неудачная попытка вручения"), None)
+            oper_type_2 = first_item['OperationParameters']['OperType']['Name'] \
+                if first_item['OperationParameters']['OperType']['Name'] else ''
+            oper_attr_2 = first_item['OperationParameters']['OperAttr']['Name'] \
+                if first_item['OperationParameters']['OperAttr']['Name'] else ''
+            oper_date_2 = first_item['OperationParameters']['OperDate'] \
+                if last_item['OperationParameters']['OperDate'] else ''
 
-                try:
-                    pod_status_date = datetime.strptime(
-                        next(entry['date'] for entry in
-                             data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                             if "Неудачная попытка вручения" in entry.get('humanStatus')),
-                        "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
-                except StopIteration:
-                    pod_status_date = None
+            oper_address_2_index = first_item['AddressParameters']['OperationAddress']['Index'] \
+                if last_item['AddressParameters']['OperationAddress']['Index'] else ''
+            oper_address_2_address = first_item['AddressParameters']['OperationAddress']['Description'] \
+                if last_item['AddressParameters']['OperationAddress']['Description'] else ''
 
+            complex_item_name = first_item['ItemParameters']['ComplexItemName'] \
+                if first_item['ItemParameters']['ComplexItemName'] else ''
 
-            elif any(s in status for s in
-                     ["Покинуло сортировочный центр", "Направлено для передачи на временное хранение",
-                      "Возвращено отправителю", "Временное хранение", "Хранится в отделении до",
-                      "Срок хранения истекает", "Прибыло в сортировочный центр", "Срок хранения истек"]):
-
-                pod_status = next((entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Неудачная попытка вручения" in entry.get('humanStatus')), None)
-
-                pod_status_index = next((entry['index'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Неудачная попытка вручения" in entry.get('humanStatus')), None)
-
-                pod_status_city = next((entry['cityName'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Неудачная попытка вручения" in entry.get('humanStatus')), None)
-
-                try:
-                    pod_status_date = datetime.strptime(
-                        next(entry['date'] for entry in
-                             data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                             if "Неудачная попытка вручения" in entry.get('humanStatus')),
-                        "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
-                except StopIteration:
-                    pod_status_date = None
-
-            elif "Вручено" in status:
-                "Вручение адресату"
-                pod_status = next((entry['humanStatus'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Вручение адресату" in entry.get('humanStatus')), None)
-
-                pod_status_index = next((entry['index'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Вручение адресату" in entry.get('humanStatus')), None)
-
-                pod_status_city = next((entry['cityName'] for entry in data['detailedTrackings'][0]['trackingItem']
-                ['trackingHistoryItemList'] if "Вручение адресату" in entry.get('humanStatus')), None)
-                try:
-                    pod_status_date = datetime.strptime(
-                        next(entry['date'] for entry in
-                             data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                             if "Вручение адресату" in entry.get('humanStatus')),
-                        "%Y-%m-%dT%H:%M:%S.%f%z").strftime("%d.%m.%Y")
-                except StopIteration:
-                    pod_status_date = None
-
-            arrival_event = any(entry['humanStatus'] == "Прибыло в место вручения" for entry in
-                                data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList'])
-
-            if arrival_event:
-                arrival_date = datetime.strptime(
-                    next(entry['date'] for entry in
-                         data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                         if entry['humanStatus'] == "Прибыло в место вручения"),
-                    "%Y-%m-%dT%H:%M:%S.%f%z"
-                ).strftime("%d.%m.%Y")
-                index = next(
-                    entry['index'] for entry in data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                    if entry['humanStatus'] == "Прибыло в место вручения")
-                city = next(
-                    entry['cityName'] for entry in
-                    data['detailedTrackings'][0]['trackingItem']['trackingHistoryItemList']
-                    if entry['humanStatus'] == "Прибыло в место вручения")
-            else:
-                arrival_date = ""
-                index = ""
-                city = ""
             return {
-                'TrackNumber': track_number,
-                'RecipientIndex': recipient_index,
-                'DestinationCity': destination_city,
-                'Recipient': recipient,
-                'Status': status,
-                'PodStatus': pod_status,
-                'PodStatusDate': pod_status_date,
-                'PodStatusIndex': pod_status_index,
-                'PodStatusCity': pod_status_city,
-                'ReceiveStatus': receive_status,
-                'ReceiveStatusDate': receive_date,
-                'ReceiveStatusIndex': receive_index,
-                'ReceiveStatusCity': receive_city,
-                'ArrivalDate': arrival_date,
-                'IndexGet': index,
-                'CityGet': city,
-                'MailType': mail_type,
-                'Sender': sender,
+                'Barcode': barcode,
+                'DestinationAddress': f'{index} {description}',
+                'Rcpn': rcpn,
+                'OperType1': oper_type_1,
+                'OperAttr1': oper_attr_1,
+                'OperDate1': oper_date_1,
+                'OperationAddress1': f'{oper_address_1_index} {oper_address_1_address}',
+                'OperType2': oper_type_2,
+                'OperAttr2': oper_attr_2,
+                'OperDate2': oper_date_2,
+                'OperationAddress2': f'{oper_address_2_index} {oper_address_2_address}',
+                'Sndr': sndr,
+                'ComplexItemName': complex_item_name,
             }
         except Exception as e:
             print(e)
             await bot.send_message(user_id,
                                    f"Ошибка при выполнении запроса для трек-номера {track_number}: {str(e)}")
-    else:
-        await bot.send_message(user_id,
-                               f"Ошибка при выполнении запроса для трек-номера {track_number}: {response.status_code}")
+    except Exception as e:
+        print(e)
+        await bot.send_message(user_id, f"Ошибка при подключении к сервису отслеживания: {str(e)}")
         return None
 
 
 async def get_track_info(file_name, user_id):
-    # Загружаем данные из экселя
-    df = pd.read_excel(f"{os.getcwd()}/files/{file_name}")
+    df = pd.read_excel(f"{os.getcwd()}\\files\\{file_name}")
 
     drop_list = ['ФИО']
     df = df.drop(columns=drop_list, errors='ignore')
@@ -194,28 +115,24 @@ async def get_track_info(file_name, user_id):
     count_pochta = 1
     for index, row in df.iterrows():
 
-        track_number = row['Трек-номер']
+        track_number = row['Barcode']
         tracking_info = await get_tracking_info(track_number, user_id)
 
         if tracking_info:
-            df.at[index, 'Куда Индекс'] = str(tracking_info['RecipientIndex'])
-            df.at[index, 'Куда Место'] = str(tracking_info['DestinationCity'])
-            df.at[index, 'Кому'] = str(tracking_info['Recipient'])
-            df.at[index, 'Статус'] = str(tracking_info['Status'])
-            df.at[index, 'Подстатус'] = str(tracking_info['PodStatus'])
-            df.at[index, 'Подстатус - дата'] = str(tracking_info['PodStatusDate'])
-            df.at[index, 'Подстатус - индекс'] = str(tracking_info['PodStatusIndex'])
-            df.at[index, 'Подстатус - место'] = str(tracking_info['PodStatusCity'])
-            df.at[index, 'Принято'] = str(tracking_info['ReceiveStatus'])
-            df.at[index, 'Принято - дата'] = str(tracking_info['ReceiveStatusDate'])
-            df.at[index, 'Принято - индекс'] = str(tracking_info['ReceiveStatusDate'])
-            df.at[index, 'Принято - место'] = str(tracking_info['ReceiveStatusCity'])
-            df.at[index, 'Дата - прибыло в место вручения'] = str(tracking_info['ArrivalDate'])
-            df.at[index, 'Индекс - Прибыло в место вручения'] = str(tracking_info['IndexGet'])
-            df.at[index, 'Место - Прибыло в место вручения'] = str(tracking_info['CityGet'])
-            df.at[index, 'Вид отправления'] = str(tracking_info['MailType'])
-            df.at[index, 'От кого:'] = str(tracking_info['Sender'])
+            df.at[index, 'DestinationAddress'] = str(tracking_info['DestinationAddress'])
+            df.at[index, 'Rcpn'] = str(tracking_info['Rcpn'])
+            df.at[index, 'OperType1'] = str(tracking_info['OperType1'])
+            df.at[index, 'OperAttr1'] = str(tracking_info['OperAttr1'])
+            df.at[index, 'OperDate1'] = str(tracking_info['OperDate1'])
+            df.at[index, 'OperationAddress1'] = str(tracking_info['OperationAddress1'])
+            df.at[index, 'OperType2'] = str(tracking_info['OperType2'])
+            df.at[index, 'OperAttr2'] = str(tracking_info['OperAttr2'])
+            df.at[index, 'OperDate2'] = str(tracking_info['OperDate2'])
+            df.at[index, 'OperationAddress2'] = str(tracking_info['OperationAddress2'])
+            df.at[index, 'Sndr'] = str(tracking_info['Sndr'])
+            df.at[index, 'ComplexItemName'] = str(tracking_info['ComplexItemName'])
+
+            await asyncio.sleep(30)
 
         count_pochta += 1
-    # Сохраняем обновленные данные в новый эксель файл
     df.to_excel('result.xlsx', index=False)
