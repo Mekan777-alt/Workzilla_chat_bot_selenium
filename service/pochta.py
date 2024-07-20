@@ -1,15 +1,13 @@
-import asyncio
 import os
-import warnings
-
-from openpyxl.reader.excel import load_workbook
-from openpyxl.styles import Border, Side
-
-from config import bot, my_login, my_password
 import pandas as pd
-import json
+import asyncio
+from openpyxl import load_workbook
+from openpyxl.styles import Border, Side
+from config import bot, my_login, my_password
 from zeep import Client, Settings
 from zeep.helpers import serialize_object
+import json
+import warnings
 
 warnings.simplefilter(action='ignore', category=FutureWarning)
 
@@ -42,9 +40,9 @@ async def get_tracking_info(track_number, user_id):
         data = json.loads(json_result)
 
         try:
-
             first_item = data[0] if data else None
             last_item = data[-1] if data else None
+            middle_items = data[1:-1] if len(data) > 2 else []
 
             barcode = track_number
 
@@ -71,35 +69,50 @@ async def get_tracking_info(track_number, user_id):
             oper_attr_2 = first_item['OperationParameters']['OperAttr']['Name'] \
                 if first_item['OperationParameters']['OperAttr']['Name'] else ''
             oper_date_2 = first_item['OperationParameters']['OperDate'] \
-                if last_item['OperationParameters']['OperDate'] else ''
+                if first_item['OperationParameters']['OperDate'] else ''
 
             oper_address_2_index = first_item['AddressParameters']['OperationAddress']['Index'] \
-                if last_item['AddressParameters']['OperationAddress']['Index'] else ''
+                if first_item['AddressParameters']['OperationAddress']['Index'] else ''
             oper_address_2_address = first_item['AddressParameters']['OperationAddress']['Description'] \
-                if last_item['AddressParameters']['OperationAddress']['Description'] else ''
+                if first_item['AddressParameters']['OperationAddress']['Description'] else ''
 
             complex_item_name = first_item['ItemParameters']['ComplexItemName'] \
                 if first_item['ItemParameters']['ComplexItemName'] else ''
 
+            middle_operations = [{
+                'OperType': item['OperationParameters']['OperType']['Name'] if item['OperationParameters']['OperType'][
+                    'Name'] else '',
+                'OperAttr': item['OperationParameters']['OperAttr']['Name'] if item['OperationParameters']['OperAttr'][
+                    'Name'] else '',
+                'OperDate': item['OperationParameters']['OperDate'] if item['OperationParameters']['OperDate'] else '',
+                'OperationAddressIndex': item['AddressParameters']['OperationAddress']['Index'] if
+                item['AddressParameters']['OperationAddress']['Index'] else '',
+                'OperationAddressDescription': item['AddressParameters']['OperationAddress']['Description'] if
+                item['AddressParameters']['OperationAddress']['Description'] else ''
+            } for item in middle_items]
+
             return {
                 'Barcode': barcode,
-                'DestinationAddress': f'{index} {description}',
+                'DestIndex': index,
+                'DestDesc': description,
                 'Rcpn': rcpn,
                 'OperType1': oper_type_1,
                 'OperAttr1': oper_attr_1,
                 'OperDate1': oper_date_1,
-                'OperationAddress1': f'{oper_address_1_index} {oper_address_1_address}',
+                'OperationAddress1Index': oper_address_1_index,
+                'OperationAddress1Address': oper_address_1_address,
                 'OperType2': oper_type_2,
                 'OperAttr2': oper_attr_2,
                 'OperDate2': oper_date_2,
-                'OperationAddress2': f'{oper_address_2_index} {oper_address_2_address}',
+                'OperationAddress2Index': oper_address_2_index,
+                'OperationAddress2Address': oper_address_2_address,
                 'Sndr': sndr,
                 'ComplexItemName': complex_item_name,
+                'MiddleOperations': middle_operations
             }
         except Exception as e:
             print(e)
-            await bot.send_message(user_id,
-                                   f"Ошибка при выполнении запроса для трек-номера {track_number}: {str(e)}")
+            await bot.send_message(user_id, f"Ошибка при выполнении запроса для трек-номера {track_number}: {str(e)}")
     except Exception as e:
         print(e)
         await bot.send_message(user_id, f"Ошибка при подключении к сервису отслеживания: {str(e)}")
@@ -111,6 +124,7 @@ async def get_track_info(file_name, user_id):
 
     drop_list = ['ФИО']
     df = df.drop(columns=drop_list, errors='ignore')
+
     # Почта
     count_pochta = 1
     for index, row in df.iterrows():
@@ -119,20 +133,35 @@ async def get_track_info(file_name, user_id):
         tracking_info = await get_tracking_info(track_number, user_id)
 
         if tracking_info:
-            df.at[index, 'DestinationAddress'] = str(tracking_info['DestinationAddress'])
+            df.at[index, 'DestinationIndex'] = f"{tracking_info['DestIndex']}"
+            df.at[index, 'DestinationAddress'] = f"{tracking_info['DestDesc']}"
             df.at[index, 'Rcpn'] = str(tracking_info['Rcpn'])
             df.at[index, 'OperType1'] = str(tracking_info['OperType1'])
             df.at[index, 'OperAttr1'] = str(tracking_info['OperAttr1'])
             df.at[index, 'OperDate1'] = str(tracking_info['OperDate1'])
-            df.at[index, 'OperationAddress1'] = str(tracking_info['OperationAddress1'])
+            df.at[index, 'OperationIndex1'] = f"{tracking_info['OperationAddress1Index']}"
+            df.at[index, 'OperationAddress1'] = f"{tracking_info['OperationAddress1Address']}"
             df.at[index, 'OperType2'] = str(tracking_info['OperType2'])
             df.at[index, 'OperAttr2'] = str(tracking_info['OperAttr2'])
             df.at[index, 'OperDate2'] = str(tracking_info['OperDate2'])
-            df.at[index, 'OperationAddress2'] = str(tracking_info['OperationAddress2'])
+            df.at[index, 'OperationIndex2'] = f"{tracking_info['OperationAddress2Index']}"
+            df.at[index, 'OperationAddress2'] = f"{tracking_info['OperationAddress2Address']}"
             df.at[index, 'Sndr'] = str(tracking_info['Sndr'])
             df.at[index, 'ComplexItemName'] = str(tracking_info['ComplexItemName'])
+
+            # Запись остальных операций
+            middle_operations = tracking_info['MiddleOperations']
+            for i, operation in enumerate(middle_operations):
+                df.at[index, f'MiddleOperType_{i + 1}'] = operation['OperType']
+                df.at[index, f'MiddleOperAttr_{i + 1}'] = operation['OperAttr']
+                df.at[index, f'MiddleOperDate_{i + 1}'] = operation['OperDate']
+                df.at[index, f'MiddleOperationIndex_{i + 1}'] = operation['OperationAddressIndex']
+                df.at[index, f'MiddleOperationAddress_{i + 1}'] = operation['OperationAddressDescription']
+
+            df.to_excel('result.xlsx', index=False)
 
             await asyncio.sleep(30)
 
         count_pochta += 1
+
     df.to_excel('result.xlsx', index=False)
